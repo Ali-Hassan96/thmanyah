@@ -17,25 +17,14 @@ services:
     ports:
       - "6379:6379"
   
-  zookeeper:
-    image: bitnami/zookeeper:latest
-    container_name: zookeeper
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis_commander
     restart: unless-stopped
     environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
+      - REDIS_HOSTS=local:redis:6379
     ports:
-      - "2181:2181"
-
-  kafka:
-    image: bitnami/kafka:latest
-    container_name: kafka
-    restart: unless-stopped
+      - "8081:8081"
     depends_on:
-      - zookeeper
-    environment:
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - ALLOW_PLAINTEXT_LISTENER=yes
-    ports:
-      - "9092:9092"
+      - redis
+  
