@@ -18,7 +18,7 @@ import sys
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col, count, sum as spark_sum, avg, max as spark_max, 
-    min as spark_min, when, date_format, to_date
+    min as spark_min, when, date_format, to_date, round as spark_round
 )
 
 # PostgreSQL configuration
@@ -79,6 +79,20 @@ df_joined = df_content.join(
     "left"
 )
 
+# Calculate engagement_seconds and engagement_pct for enrichment
+df_joined = df_joined.withColumn(
+    "engagement_seconds",
+    when(col("duration_ms").isNotNull(), col("duration_ms") / 1000.0).otherwise(None)
+).withColumn(
+    "engagement_pct",
+    when(
+        col("length_seconds").isNotNull() & 
+        col("engagement_seconds").isNotNull() & 
+        (col("length_seconds") > 0),
+        spark_round(col("engagement_seconds") / col("length_seconds") * 100, 2)
+    ).otherwise(None)
+)
+
 # Analysis 1: Overall content engagement metrics
 print("\n📊 Creating content engagement metrics...")
 df_content_metrics = df_joined.groupBy(
@@ -111,20 +125,24 @@ print("Content metrics preview:")
 df_content_metrics.show(5, truncate=False)
 
 # Analysis 2: Daily engagement metrics
+# Group by content, event_type, and date to get daily metrics per event type
+# Includes length_seconds from content table and event_type from engagement_events
 print("\n📊 Creating daily engagement metrics...")
 df_daily_metrics = df_joined.groupBy(
     df_content.id.alias("content_id"),
     df_content.slug.alias("content_slug"),
     df_content.title.alias("content_title"),
     df_content.content_type.alias("content_type"),
+    df_content.length_seconds.alias("length_seconds"),  # From content table
+    df_engagement.event_type.alias("event_type"),  # From engagement_events
     to_date(df_engagement.event_ts).alias("event_date")
 ).agg(
     count(df_engagement.id).alias("events_count"),
-    count(when(df_engagement.event_type == "play", 1)).alias("play_count"),
-    count(when(df_engagement.event_type == "finish", 1)).alias("finish_count"),
     spark_sum(df_engagement.duration_ms).alias("total_duration_ms"),
     avg(df_engagement.duration_ms).alias("avg_duration_ms"),
-    count(df_engagement.user_id).alias("unique_users")
+    count(df_engagement.user_id).alias("unique_users"),
+    avg(col("engagement_seconds")).alias("avg_engagement_seconds"),
+    avg(col("engagement_pct")).alias("avg_engagement_pct")
 ).filter(
     col("event_date").isNotNull()
 )

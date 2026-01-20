@@ -138,6 +138,32 @@ services:
     networks:
       - spark-network
 
+  auto-stream-engagement:
+    image: python:3.11-slim
+    container_name: auto_stream_engagement
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        pip install --quiet psycopg2-binary redis && python3 /app/services/auto_stream_engagement_to_redis.py
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=mysecretpassword
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - STREAMING_INTERVAL=5
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - .:/app
+    networks:
+      - spark-network
+
   auto-analyze-postgres:
     image: apache/spark:3.5.1-python3
     container_name: auto_analyze_postgres
